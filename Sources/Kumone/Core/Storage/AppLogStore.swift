@@ -3,10 +3,6 @@ import SwiftUI
 
 /// Simple in-memory log store that captures print output for in-app viewing.
 enum AppLogStore {
-    static let shared = AppLogStore()
-    
-    private init() {}
-    
     private static let maxLogs = 500
     private static let logLock = NSLock()
     private static var _logs: [(time: String, message: String)] = []
