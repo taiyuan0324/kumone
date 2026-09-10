@@ -35,8 +35,7 @@ jobs:
 
       - name: Configure iOS
         run: |
-          cd ios
-          Scripts/configure-ios.sh
+          ./Scripts/configure-ios.sh
 
       - name: Build iOS App
         run: |
