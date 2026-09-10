@@ -51,7 +51,8 @@ jobs:
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGN_ENTITLEMENTS="" \
             DEVELOPMENT_TEAM="" \
-            PROVISIONING_PROFILE=""
+            PROVISIONING_PROFILE="" \
+            IPHONEOS_DEPLOYMENT_TARGET=17.0
 
       - name: Create IPA
         run: |
