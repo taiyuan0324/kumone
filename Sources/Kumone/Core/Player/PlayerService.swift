@@ -411,7 +411,7 @@ final class PlayerService: ObservableObject {
     func seek(to seconds: TimeInterval, completion: (@MainActor () -> Void)? = nil) {
         let wasPlaying = isPlaying
         // Cancel any pending seeks to avoid race conditions on rapid dragging.
-        engine.cancelPendingSeeks()
+        engine.currentItem?.cancelPendingSeeks()
         // Pause before seeking to prevent timeline from advancing while audio decodes.
         if wasPlaying {
             engine.pause()
