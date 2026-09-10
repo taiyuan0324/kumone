@@ -428,7 +428,7 @@ final class PlayerService: ObservableObject {
                 guard let self else { return }
                 // Now that seek has finished and audio is at the target position,
                 // update the timeline and resume playback if it was playing.
-                self.NowPlayingManager.shared.updateElapsed(seconds, rate: wasPlaying ? 1 : 0)
+                NowPlayingManager.shared.updateElapsed(seconds, rate: wasPlaying ? 1 : 0)
                 if wasPlaying {
                     self.engine.play()
                     self.isPlaying = true

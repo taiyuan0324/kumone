@@ -1610,8 +1610,6 @@ private struct IOSMinimalLyricsColumn: View {
                                         selectionTimeoutTask = nil
                                         suppressesAutoScroll = true
                                         player.seek(to: line.time) {
-                // Seek completed - lyrics and UI are now synchronized.
-            } {
                                             suppressesAutoScroll = false
                                         }
                                         activeIndex = line.id
