@@ -132,10 +132,17 @@ final class PlayerService: ObservableObject {
     @Published private(set) var isTrial = false
     let clock = PlaybackClock()
     let lyricsCursor = LyricsCursor()
+    /// The actual playback position as reported by AVPlayer. This is the
+    /// single source of truth for lyrics and progress UI.
+    private(set) var playbackTime: TimeInterval = 0
+    /// While scrubbing, the user's target position. UI shows this during
+    /// dragging; it does NOT drive lyrics or audio.
+    @Published var seekPreviewTime: TimeInterval?
     /// Passthrough to the clock so existing `progress` reads/writes keep working.
+    /// Kept for backward compatibility with existing UI code.
     var progress: TimeInterval {
-        get { clock.progress }
-        set { clock.progress = newValue }
+        get { seekPreviewTime ?? playbackTime }
+        set { playbackTime = newValue }
     }
     @Published var repeatMode: RepeatMode = .off {
         didSet { UserDefaults.standard.set(repeatMode.rawValue, forKey: "player.repeat") }
@@ -263,16 +270,13 @@ final class PlayerService: ObservableObject {
                 let seconds = self.engine.currentTime().seconds
                 guard seconds.isFinite else { return }
 
-                // Lyrics need this cadence to stay in sync; the cursor itself
-                // only publishes when the line actually changes.
-                self.updateLyricsCursor(at: seconds)
-
-                // The scrubber does not. Publishing the position every tick
-                // re-renders it — and SwiftUI rebuilds the display list for the
-                // whole tree each time — to move the thumb a fraction of a
-                // pixel. Half a second is still smoother than the eye needs.
-                if abs(seconds - self.progress) > 0.45 {
-                    self.progress = seconds
+                // Only update playbackTime when not scrubbing.
+                if !self.isScrubbing {
+                    self.playbackTime = seconds
+                    // Lyrics are driven by actual playback time.
+                    self.updateLyricsCursor(at: seconds)
+                    // The scrubber follows playbackTime.
+                    self.clock.progress = seconds
                     NowPlayingManager.shared.updateElapsed(seconds, rate: self.isPlaying ? 1 : 0)
                 }
             }
@@ -426,78 +430,47 @@ final class PlayerService: ObservableObject {
             engine.pause()
             isPlaying = false
         }
-        // Update UI immediately for immediate feedback.
-        // Use actual engine position so preview doesn't jump ahead of audio.
-        progress = min(seconds, engine.currentTime().seconds + Self.maxTimelineLead)
-        // Do NOT update lyrics cursor here - let the timeObserver drive lyrics
-        // after playback actually resumes, so UI stays in sync with audio output.
-        // updateLyricsCursor(at: seconds)
+        // Set the seek preview time - UI slider follows this during dragging.
+        seekPreviewTime = seconds
+        // Do NOT update playbackTime or lyrics here - let the timeObserver
+        // drive them from the actual engine position after seek completes.
 
         AppLogStore.append("[SEEK] Target: \(seconds)s | Was playing: \(wasPlaying)")
         AppLogStore.append("[SEEK] Engine currentTime before seek: \(engine.currentTime().seconds)")
         AppLogStore.append("[SEEK] Clock progress before seek: \(clock.progress)")
         AppLogStore.append("[SEEK] Duration: \(engine.currentItem?.duration.seconds ?? 0)")
 
-        // Precise seek with zero tolerance; only update elapsed time after completion.
-        // Use 0.1s tolerance for faster seek on high-bitrate sources.
-        // Zero tolerance requires sample-accurate seeking which adds decode
-        // latency on lossless/hi-res streams.
+        // Seek with tolerance for high-bitrate sources.
         engine.seek(
             to: CMTime(seconds: seconds, preferredTimescale: 600),
-            toleranceBefore: CMTime(seconds: 0.1, preferredTimescale: 600),
-            toleranceAfter: CMTime(seconds: 0.1, preferredTimescale: 600)
-        ) { [weak self] _ in
+            toleranceBefore: CMTime(seconds: 0.05, preferredTimescale: 600),
+            toleranceAfter: CMTime(seconds: 0.05, preferredTimescale: 600)
+        ) { [weak self] finished in
             Task { @MainActor [weak self] in
-                guard let self else { return }
+                guard let self, finished else { return }
                 
                 AppLogStore.append("[SEEK] Seek completed. Engine currentTime: \(self.engine.currentTime().seconds)")
                 AppLogStore.append("[PLAYBACK] status=\(self.engine.timeControlStatus.rawValue) reason=\(String(describing: self.engine.reasonForWaitingToPlay)) likelyKeepUp=\(self.engine.currentItem?.isPlaybackLikelyToKeepUp ?? false) bufferEmpty=\(self.engine.currentItem?.isPlaybackBufferEmpty ?? false) bufferFull=\(self.engine.currentItem?.isPlaybackBufferFull ?? false)")
                 
-                // Wait for the audio buffer to be ready before resuming playback.
                 if wasPlaying {
-                    let buffered = await self.waitForBuffer(at: seconds)
-                    AppLogStore.append("[SEEK] Buffer ready after \(buffered)ms. Loaded: \(self.loadedBufferTime())")
-                    
+                    // Resume playback first; the timeObserver will take over
+                    // and drive playbackTime/lyrics from the actual audio position.
                     self.engine.play()
                     self.isPlaying = true
                     AppLogStore.append("[SEEK] Resumed playback. Engine currentTime: \(self.engine.currentTime().seconds)")
                 }
                 
-                // Now update the UI timeline to the actual engine position.
-                let actualTime = self.engine.currentTime().seconds
-                NowPlayingManager.shared.updateElapsed(actualTime, rate: wasPlaying ? 1 : 0)
-                self.clock.progress = actualTime
-                AppLogStore.append("[SEEK] UI timeline set to \(actualTime)s (engine time)")
+                // Clear the preview; UI will follow playbackTime from the observer.
+                self.seekPreviewTime = nil
                 
                 completion?()
             }
         }
     }
 
-    /// Wait until the loaded buffer covers the target time.
-    private func waitForBuffer(at seconds: TimeInterval) async -> Int {
-        var elapsed = 0
-        let step = 50 // ms
-        for _ in 0..<60 { // max 3 seconds
-            if let duration = engine.currentItem?.duration.seconds {
-                let loaded = loadedBufferTime()
-                if loaded >= seconds || loaded >= duration - 0.5 {
-                    return elapsed
-                }
-            }
-            try? await Task.sleep(for: .milliseconds(step))
-            elapsed += step
-        }
-        return elapsed
-    }
-
-    /// Returns the currently loaded buffer end time in seconds.
-    private func loadedBufferTime() -> Double {
-        guard let ranges = engine.currentItem?.loadedTimeRanges,
-              let last = ranges.last else { return 0 }
-        let timeRange = last.timeRangeValue
-        return timeRange.end.seconds
-    }
+    // Removed: waitForBuffer/loadedBufferTime were based on loadedTimeRanges
+    // which does NOT represent "audio is ready to output". The timeObserver
+    // driving from engine.currentTime() is the correct source.
 
     func toggleShuffle() {
         guard !isFMMode else { return }

@@ -272,7 +272,8 @@ struct ScrubberLane: View {
 
     private var fraction: Double {
         guard player.duration > 0 else { return 0 }
-        let value = isDragging ? dragProgress : clock.progress
+        // While dragging, show the preview time; otherwise show actual playback.
+        let value = player.seekPreviewTime ?? player.progress
         return min(max(value / player.duration, 0), 1)
     }
 
