@@ -419,10 +419,10 @@ final class PlayerService: ObservableObject {
         progress = seconds
         updateLyricsCursor(at: seconds)
 
-        print("[SEEK] Target: \(seconds)s | Was playing: \(wasPlaying)")
-        print("[SEEK] Engine currentTime before seek: \(engine.currentTime().seconds)")
-        print("[SEEK] Clock progress before seek: \(clock.progress)")
-        print("[SEEK] Duration: \(engine.currentItem?.duration.seconds ?? 0)")
+        AppLogStore.append("[SEEK] Target: \(seconds)s | Was playing: \(wasPlaying)")
+        AppLogStore.append("[SEEK] Engine currentTime before seek: \(engine.currentTime().seconds)")
+        AppLogStore.append("[SEEK] Clock progress before seek: \(clock.progress)")
+        AppLogStore.append("[SEEK] Duration: \(engine.currentItem?.duration.seconds ?? 0)")
 
         // Precise seek with zero tolerance; only update elapsed time after completion.
         engine.seek(
@@ -433,22 +433,22 @@ final class PlayerService: ObservableObject {
             Task { @MainActor [weak self] in
                 guard let self else { return }
                 
-                print("[SEEK] Seek completed. Engine currentTime: \(self.engine.currentTime().seconds)")
+                AppLogStore.append("[SEEK] Seek completed. Engine currentTime: \(self.engine.currentTime().seconds)")
                 
                 // Wait for the audio buffer to be ready before resuming playback.
                 if wasPlaying {
                     let buffered = await self.waitForBuffer(at: seconds)
-                    print("[SEEK] Buffer ready after \(buffered)ms. Loaded: \(self.loadedBufferTime())")
+                    AppLogStore.append("[SEEK] Buffer ready after \(buffered)ms. Loaded: \(self.loadedBufferTime())")
                     
                     self.engine.play()
                     self.isPlaying = true
-                    print("[SEEK] Resumed playback. Engine currentTime: \(self.engine.currentTime().seconds)")
+                    AppLogStore.append("[SEEK] Resumed playback. Engine currentTime: \(self.engine.currentTime().seconds)")
                 }
                 
                 // Now update the UI timeline.
                 NowPlayingManager.shared.updateElapsed(seconds, rate: wasPlaying ? 1 : 0)
                 self.clock.progress = seconds
-                print("[SEEK] UI timeline set to \(self.clock.progress)s")
+                AppLogStore.append("[SEEK] UI timeline set to \(self.clock.progress)s")
                 
                 completion?()
             }

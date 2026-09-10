@@ -73,6 +73,14 @@ struct SettingsView: View {
                 }
             }
 
+            Section("调试") {
+                NavigationLink {
+                    AppLogView()
+                } label: {
+                    Label("播放日志", systemImage: "doc.text.magnifyingglass")
+                }
+            }
+
             Section("关于") {
                 LabeledContent("Kumone", value: appVersion)
                 #if os(iOS)
