@@ -121,6 +121,7 @@ final class PlayerService: ObservableObject {
     @Published private(set) var isBuffering = false
     @Published private(set) var duration: TimeInterval = 0
     @Published private(set) var servedQuality: String?
+    @Published private(set) var servedBitrate: Int?
     @Published private(set) var unblockSource: String?
     @Published private(set) var isTrial = false
     let clock = PlaybackClock()
@@ -558,6 +559,7 @@ final class PlayerService: ObservableObject {
         progress = 0
         duration = track.duration
         servedQuality = nil
+        servedBitrate = nil
         unblockSource = nil
         isTrial = false
         lyrics = nil
@@ -624,6 +626,7 @@ final class PlayerService: ObservableObject {
 
         consecutiveFailures = 0
         servedQuality = data?.level
+        servedBitrate = data?.br
         if data?.freeTrialInfo != nil {
             isTrial = true
             ToastCenter.shared.show(String(localized: "VIP 歌曲，当前为试听片段"))

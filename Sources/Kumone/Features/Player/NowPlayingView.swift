@@ -1296,37 +1296,54 @@ private struct CompactTransportControls: View {
 
 private struct CompactQualitySelector: View {
     @EnvironmentObject private var settings: SettingsManager
+    @EnvironmentObject private var player: PlayerService
 
     var body: some View {
-        HStack(spacing: 8) {
-            Image(systemName: "waveform")
-                .font(.caption2)
-            ForEach(AudioQuality.allCases) { quality in
-                Button {
-                    settings.audioQuality = quality
-                } label: {
-                    Text(quality.badge)
-                        .font(.caption2.weight(.medium))
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 3)
-                        .background(
-                            settings.audioQuality == quality
-                                ? .white.opacity(0.85)
-                                : .white.opacity(0.15),
-                            in: Capsule()
-                        )
-                        .foregroundStyle(
-                            settings.audioQuality == quality
-                                ? .black
-                                : .white.opacity(0.72)
-                        )
+        VStack(spacing: 8) {
+            // Current playing bitrate display
+            if let br = player.servedBitrate {
+                Text(currentBitrateText(br))
+                    .font(.caption2.weight(.medium))
+                    .foregroundStyle(.white.opacity(0.72))
+            }
+
+            HStack(spacing: 8) {
+                Image(systemName: "waveform")
+                    .font(.caption2)
+                ForEach(AudioQuality.allCases) { quality in
+                    Button {
+                        settings.audioQuality = quality
+                    } label: {
+                        Text(quality.badge)
+                            .font(.caption2.weight(.medium))
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 3)
+                            .background(
+                                settings.audioQuality == quality
+                                    ? .white.opacity(0.85)
+                                    : .white.opacity(0.15),
+                                in: Capsule()
+                            )
+                            .foregroundStyle(
+                                settings.audioQuality == quality
+                                    ? .black
+                                    : .white.opacity(0.72)
+                            )
+                    }
+                    .buttonStyle(.pressable)
                 }
-                .buttonStyle(.pressable)
             }
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, 3)
         .accessibilityLabel("音质")
+    }
+
+    private func currentBitrateText(_ br: Int) -> String {
+        if br >= 1000 {
+            return String(format: "当前码率：%.1f Mbps", Double(br) / 1000.0)
+        }
+        return "当前码率：\(br) kbps"
     }
 }
 
