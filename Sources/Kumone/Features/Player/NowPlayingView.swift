@@ -19,6 +19,7 @@ struct NowPlayingView: View {
     @State private var resumeTask: Task<Void, Never>?
     @State private var showLyricsOnMobile = false
     @State private var showQueueOnMobile = false
+    @State private var showCommentsOnMobile = false
 
     var body: some View {
         GeometryReader { geo in
@@ -89,6 +90,11 @@ struct NowPlayingView: View {
         .ignoresSafeArea()
         #endif
         .preferredColorScheme(.dark)
+        .sheet(isPresented: $showCommentsOnMobile) {
+            if let track = player.currentTrack {
+                SongCommentsSheet(track: track)
+            }
+        }
         .task(id: player.currentTrack?.id) {
             await loadArtwork()
         }
@@ -435,7 +441,8 @@ struct NowPlayingView: View {
                 showsLyrics: showLyricsOnMobile,
                 showsQueue: showQueueOnMobile,
                 onToggleLyrics: toggleImmersiveLyrics,
-                onToggleQueue: toggleImmersiveQueue
+                onToggleQueue: toggleImmersiveQueue,
+                onShowComments: { showCommentsOnMobile = true }
             )
         }
         .padding(.top, 14)
@@ -1329,6 +1336,7 @@ private struct CompactSecondaryControls: View {
     let showsQueue: Bool
     let onToggleLyrics: () -> Void
     let onToggleQueue: () -> Void
+    let onShowComments: () -> Void
 
     var body: some View {
         HStack(spacing: 0) {
@@ -1337,6 +1345,12 @@ private struct CompactSecondaryControls: View {
                 label: showsLyrics ? "显示封面" : "显示歌词",
                 isActive: showsLyrics && !showsQueue
             ) { onToggleLyrics() }
+
+            secondaryButton(
+                icon: "text.bubble",
+                label: "评论",
+                isActive: false
+            ) { onShowComments() }
 
             secondaryButton(
                 icon: "list.bullet",

@@ -387,6 +387,136 @@ enum NeteaseAPI {
         return try await eapi(SongURLResponse.self, "/song/enhance/player/url/v1", payload).data
     }
 
+    // MARK: - Comments
+
+    struct CommentUser: Decodable, Hashable, Identifiable {
+        let id: Int
+        let nickname: String
+        let avatarURLString: String?
+
+        var avatarURL: URL? {
+            guard let avatarURLString else { return nil }
+            return URL(string: avatarURLString.replacingOccurrences(of: "http://", with: "https://"))
+        }
+
+        enum CodingKeys: String, CodingKey {
+            case id = "userId"
+            case nickname
+            case avatarURLString = "avatarUrl"
+        }
+
+        init(from decoder: Decoder) throws {
+            let c = try decoder.container(keyedBy: CodingKeys.self)
+            id = try c.decodeIfPresent(Int.self, forKey: .id) ?? 0
+            nickname = try c.decodeIfPresent(String.self, forKey: .nickname) ?? "网易云用户"
+            avatarURLString = try c.decodeIfPresent(String.self, forKey: .avatarURLString)
+        }
+    }
+
+    struct CommentReply: Decodable, Hashable {
+        let user: CommentUser?
+        let content: String
+        let status: Int?
+
+        enum CodingKeys: String, CodingKey {
+            case user, content, status
+        }
+
+        init(from decoder: Decoder) throws {
+            let c = try decoder.container(keyedBy: CodingKeys.self)
+            user = try c.decodeIfPresent(CommentUser.self, forKey: .user)
+            content = try c.decodeIfPresent(String.self, forKey: .content) ?? ""
+            status = try c.decodeIfPresent(Int.self, forKey: .status)
+        }
+    }
+
+    struct SongComment: Decodable, Hashable, Identifiable {
+        let id: Int64
+        let user: CommentUser
+        let content: String
+        let time: Double?
+        let timeDescription: String?
+        let likedCount: Int
+        let isLiked: Bool
+        let replyCount: Int
+        let replies: [CommentReply]
+        let ipLocation: String?
+        let isOwner: Bool
+
+        var formattedTime: String {
+            if let timeDescription { return timeDescription }
+            guard let time else { return "" }
+            let date = Date(timeIntervalSince1970: time / 1000)
+            let formatter = DateFormatter()
+            formatter.dateFormat = "yyyy-MM-dd HH:mm"
+            return formatter.string(from: date)
+        }
+
+        enum CodingKeys: String, CodingKey {
+            case id = "commentId"
+            case user, content, time
+            case timeDescription = "timeStr"
+            case likedCount
+            case isLiked = "liked"
+            case replyCount
+            case replies = "beReplied"
+            case ipLocation
+            case isOwner
+        }
+
+        init(from decoder: Decoder) throws {
+            let c = try decoder.container(keyedBy: CodingKeys.self)
+            id = try c.decodeIfPresent(Int64.self, forKey: .id) ?? 0
+            user = try c.decodeIfPresent(CommentUser.self, forKey: .user)
+                ?? CommentUser(id: 0, nickname: "网易云用户", avatarURLString: nil)
+            content = try c.decodeIfPresent(String.self, forKey: .content) ?? ""
+            time = try c.decodeIfPresent(Double.self, forKey: .time)
+            timeDescription = try c.decodeIfPresent(String.self, forKey: .timeDescription)
+            likedCount = try c.decodeIfPresent(Int.self, forKey: .likedCount) ?? 0
+            isLiked = try c.decodeIfPresent(Bool.self, forKey: .isLiked) ?? false
+            replyCount = try c.decodeIfPresent(Int.self, forKey: .replyCount) ?? 0
+            replies = try c.decodeIfPresent([CommentReply].self, forKey: .replies) ?? []
+            ipLocation = try c.decodeIfPresent(String.self, forKey: .ipLocation)
+            isOwner = try c.decodeIfPresent(Bool.self, forKey: .isOwner) ?? false
+        }
+    }
+
+    struct SongCommentsResponse: Decodable {
+        let hotComments: [SongComment]
+        let comments: [SongComment]
+        let total: Int
+        let hasMore: Bool
+
+        enum CodingKeys: String, CodingKey {
+            case hotComments, comments, total, hasMore
+        }
+
+        init(from decoder: Decoder) throws {
+            let c = try decoder.container(keyedBy: CodingKeys.self)
+            hotComments = try c.decodeIfPresent([SongComment].self, forKey: .hotComments) ?? []
+            comments = try c.decodeIfPresent([SongComment].self, forKey: .comments) ?? []
+            total = try c.decodeIfPresent(Int.self, forKey: .total) ?? 0
+            hasMore = try c.decodeIfPresent(Bool.self, forKey: .hasMore) ?? false
+        }
+    }
+
+    static func songComments(
+        id: Int,
+        offset: Int = 0,
+        limit: Int = 20
+    ) async throws -> SongCommentsResponse {
+        try await weapi(
+            SongCommentsResponse.self,
+            "/api/v1/resource/comments/R_SO_4_\(id)",
+            [
+                "rid": id,
+                "limit": limit,
+                "offset": offset,
+                "beforeTime": 0,
+            ]
+        )
+    }
+
     static func lyric(id: Int) async throws -> LyricResponse {
         // `/song/lyric/v1` also returns verbatim (word-by-word) `yrc`. Fall back
         // to the classic endpoint if it yields nothing usable, so plain lyrics
