@@ -260,7 +260,7 @@ final class PlayerService: ObservableObject {
         #endif
 
         timeObserver = engine.addPeriodicTimeObserver(
-            forInterval: CMTime(seconds: 0.1, preferredTimescale: 600), queue: .main
+            forInterval: CMTime(seconds: 0.05, preferredTimescale: 600), queue: .main
         ) { [weak self] _ in
             MainActor.assumeIsolated {
                 guard let self, !self.isScrubbing else { return }
@@ -432,8 +432,9 @@ final class PlayerService: ObservableObject {
         }
         // Set the seek preview time - UI slider follows this during dragging.
         seekPreviewTime = seconds
-        // Do NOT update playbackTime or lyrics here - let the timeObserver
-        // drive them from the actual engine position after seek completes.
+        // Update the lyrics cursor to the actual engine position so the lyrics
+        // don't display stale content during dragging.
+        updateLyricsCursor(at: engine.currentTime().seconds)
 
         AppLogStore.append("[SEEK] Target: \(seconds)s | Was playing: \(wasPlaying)")
         AppLogStore.append("[SEEK] Engine currentTime before seek: \(engine.currentTime().seconds)")
