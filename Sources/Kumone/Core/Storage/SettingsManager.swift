@@ -102,7 +102,6 @@ final class SettingsManager: ObservableObject {
         static let volume = "settings.volume"
         static let fmMode = "settings.fmMode"
         static let unblock = "settings.enableUnblock"
-        static let autoCheckUpdates = "settings.autoCheckUpdates"
         static let desktopLyrics = "settings.showDesktopLyrics"
         static let desktopLyricsCentered = "settings.desktopLyricsCentered"
     }
@@ -125,15 +124,6 @@ final class SettingsManager: ObservableObject {
 
     /// Check for updates on launch. When off, no update sheet appears
     /// automatically; the user can still check manually (#42).
-    @Published var autoCheckUpdates: Bool {
-        didSet {
-            UserDefaults.standard.set(autoCheckUpdates, forKey: Keys.autoCheckUpdates)
-            #if os(macOS)
-            UpdaterManager.shared.setAutomaticChecks(autoCheckUpdates)
-            #endif
-        }
-    }
-
     /// Reading shown for Japanese lyrics: a romaji line above, furigana over
     /// the kanji, or nothing.
     @Published var lyricsAnnotation: LyricsAnnotation {
@@ -173,7 +163,6 @@ final class SettingsManager: ObservableObject {
             ?? (defaults.bool(forKey: Keys.showRomaji) ? .romaji : .off)
         verbatimLyrics = defaults.object(forKey: Keys.verbatimLyrics) as? Bool ?? true
         enableUnblock = defaults.object(forKey: Keys.unblock) as? Bool ?? true
-        autoCheckUpdates = defaults.object(forKey: Keys.autoCheckUpdates) as? Bool ?? true
         showDesktopLyrics = defaults.object(forKey: Keys.desktopLyrics) as? Bool ?? false
         desktopLyricsCentered = defaults.object(forKey: Keys.desktopLyricsCentered) as? Bool ?? false
     }
