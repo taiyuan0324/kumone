@@ -895,7 +895,9 @@ struct NowPlayingView: View {
 
     private func bigLyricLine(_ line: LyricLine, isActive: Bool) -> some View {
         Button {
-            player.seek(to: line.time)
+            player.seek(to: line.time) {
+                // Seek completed - lyrics and UI are now synchronized.
+            }
         } label: {
             VStack(alignment: .leading, spacing: 5) {
                 if settings.lyricsAnnotation == .romaji, let romaji = line.romaji {
@@ -1097,7 +1099,9 @@ private struct IOSImmersiveLyricsColumn: View {
 
     private func lyricLine(_ line: LyricLine, isActive: Bool) -> some View {
         Button {
-            player.seek(to: line.time)
+            player.seek(to: line.time) {
+                // Seek completed - lyrics and UI are now synchronized.
+            }
         } label: {
             VStack(alignment: .leading, spacing: 5) {
                 if settings.lyricsAnnotation == .romaji, let romaji = line.romaji {
@@ -1606,6 +1610,8 @@ private struct IOSMinimalLyricsColumn: View {
                                         selectionTimeoutTask = nil
                                         suppressesAutoScroll = true
                                         player.seek(to: line.time) {
+                // Seek completed - lyrics and UI are now synchronized.
+            } {
                                             suppressesAutoScroll = false
                                         }
                                         activeIndex = line.id
@@ -2281,9 +2287,11 @@ struct NowPlayingScrubber: View {
                             dragProgress = min(max(value.location.x / width, 0), 1) * player.duration
                         }
                         .onEnded { _ in
-                            player.seek(to: dragProgress)
-                            isDragging = false
-                            player.isScrubbing = false
+                            let target = dragProgress
+                            player.seek(to: target) {
+                                isDragging = false
+                                player.isScrubbing = false
+                            }
                         }
                 )
             }

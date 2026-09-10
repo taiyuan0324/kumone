@@ -409,14 +409,33 @@ final class PlayerService: ObservableObject {
     }
 
     func seek(to seconds: TimeInterval, completion: (@MainActor () -> Void)? = nil) {
+        let wasPlaying = isPlaying
+        // Pause before seeking to prevent timeline from advancing while audio decodes.
+        if wasPlaying {
+            engine.pause()
+            isPlaying = false
+        }
+        // Update UI immediately for immediate feedback.
         progress = seconds
         updateLyricsCursor(at: seconds)
-        engine.seek(to: CMTime(seconds: seconds, preferredTimescale: 600),
-                    toleranceBefore: .zero, toleranceAfter: .zero) { _ in
-            guard let completion else { return }
-            Task { @MainActor in completion() }
+        // Precise seek with zero tolerance; only update elapsed time after completion.
+        engine.seek(
+            to: CMTime(seconds: seconds, preferredTimescale: 600),
+            toleranceBefore: .zero,
+            toleranceAfter: .zero
+        ) { [weak self] _ in
+            Task { @MainActor [weak self] in
+                guard let self else { return }
+                // Now that seek has finished and audio is at the target position,
+                // update the timeline and resume playback if it was playing.
+                self.NowPlayingManager.shared.updateElapsed(seconds, rate: wasPlaying ? 1 : 0)
+                if wasPlaying {
+                    self.engine.play()
+                    self.isPlaying = true
+                }
+                completion?()
+            }
         }
-        NowPlayingManager.shared.updateElapsed(seconds, rate: isPlaying ? 1 : 0)
     }
 
     func toggleShuffle() {

@@ -320,9 +320,11 @@ struct ScrubberLane: View {
                         dragProgress = min(max(value.location.x / width, 0), 1) * player.duration
                     }
                     .onEnded { _ in
-                        player.seek(to: dragProgress)
-                        isDragging = false
-                        player.isScrubbing = false
+                        let target = dragProgress
+                        player.seek(to: target) {
+                            isDragging = false
+                            player.isScrubbing = false
+                        }
                     }
             )
         }
