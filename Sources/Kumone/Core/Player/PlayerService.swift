@@ -113,7 +113,7 @@ final class PlayerService: ObservableObject {
     /// before we clamp the preview. On high-bitrate sources, the AVPlayer
     /// timeline can run ahead of the decoded audio; keeping this small
     /// prevents the scrubber/lyrics from getting ahead of the sound.
-    private static let maxTimelineLead = 0.5
+    private static let maxTimelineLead = 0.1
 
     // MARK: - Observable state
 
@@ -253,7 +253,7 @@ final class PlayerService: ObservableObject {
         #endif
 
         timeObserver = engine.addPeriodicTimeObserver(
-            forInterval: CMTime(seconds: 0.2, preferredTimescale: 600), queue: .main
+            forInterval: CMTime(seconds: 0.1, preferredTimescale: 600), queue: .main
         ) { [weak self] _ in
             MainActor.assumeIsolated {
                 guard let self, !self.isScrubbing else { return }
