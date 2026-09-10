@@ -398,10 +398,10 @@ enum NeteaseAPI {
             
             // Try GD Studio first.
             if let urlString = try? await GdstudioMusicAPI.songURL(id: id, br: br, source: "netease"),
-               let url = urlString, !url.isEmpty {
+               !urlString.isEmpty {
                 results.append(SongURLData(
                     id: id,
-                    url: url,
+                    url: urlString,
                     br: br,
                     size: 0,
                     type: nil,
@@ -441,6 +441,12 @@ enum NeteaseAPI {
             case id = "userId"
             case nickname
             case avatarURLString = "avatarUrl"
+        }
+
+        init(id: Int, nickname: String, avatarURLString: String?) {
+            self.id = id
+            self.nickname = nickname
+            self.avatarURLString = avatarURLString
         }
 
         init(from decoder: Decoder) throws {

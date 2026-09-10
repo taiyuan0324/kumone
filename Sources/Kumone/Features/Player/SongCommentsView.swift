@@ -82,7 +82,9 @@ struct SongCommentsSheet: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("关闭") { dismiss() }
+                    Button(action: { dismiss() }) {
+                        Text("关闭")
+                    }
                 }
             }
             .task {
@@ -190,8 +192,8 @@ struct SongCommentsSheet: View {
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
             }
-            Button("重试") {
-                Task { await loadComments() }
+            Button(action: { Task { await loadComments() } }) {
+                Text("重试")
             }
             .buttonStyle(.bordered)
         }
