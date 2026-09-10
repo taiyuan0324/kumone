@@ -430,7 +430,7 @@ struct NowPlayingView: View {
         VStack(spacing: 17) {
             NowPlayingScrubber()
             CompactTransportControls()
-            CompactVolumeControl()
+            CompactQualitySelector()
             CompactSecondaryControls(
                 showsLyrics: showLyricsOnMobile,
                 showsQueue: showQueueOnMobile,
@@ -749,9 +749,6 @@ struct NowPlayingView: View {
                 player.next()
             }
             .frame(maxWidth: .infinity)
-
-            RoutePickerButton(diameter: 40, glyphSize: 15)
-                .frame(maxWidth: .infinity)
 
             if player.isFMMode {
                 Image(systemName: "wave.3.right.circle.fill")
@@ -1290,67 +1287,39 @@ private struct CompactTransportControls: View {
     }
 }
 
-private struct CompactVolumeControl: View {
-    @EnvironmentObject private var player: PlayerService
-    @State private var isDragging = false
+private struct CompactQualitySelector: View {
+    @EnvironmentObject private var settings: SettingsManager
 
     var body: some View {
-        HStack(spacing: 11) {
-            Image(systemName: "speaker.fill")
+        HStack(spacing: 8) {
+            Image(systemName: "waveform")
                 .font(.caption2)
-            // One GeometryReader with the gesture on the ZStack. A nested
-            // GeometryReader (the old TranslucentSliderTrack) silently dropped
-            // the drag, so the volume slider did nothing (#37).
-            GeometryReader { geo in
-                let width = geo.size.width
-                let fraction = min(max(CGFloat(player.volume), 0), 1)
-                ZStack(alignment: .leading) {
-                    Capsule().fill(.white.opacity(0.28))
-                    Capsule().fill(.white.opacity(0.78))
-                        .frame(width: width * fraction)
+            ForEach(AudioQuality.allCases) { quality in
+                Button {
+                    settings.audioQuality = quality
+                } label: {
+                    Text(quality.badge)
+                        .font(.caption2.weight(.medium))
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 3)
+                        .background(
+                            settings.audioQuality == quality
+                                ? .white.opacity(0.85)
+                                : .white.opacity(0.15),
+                            in: Capsule()
+                        )
+                        .foregroundStyle(
+                            settings.audioQuality == quality
+                                ? .black
+                                : .white.opacity(0.72)
+                        )
                 }
-                .frame(height: isDragging ? 10 : 6)
-                .frame(maxHeight: .infinity)
-                .contentShape(Rectangle())
-                .gesture(
-                    DragGesture(minimumDistance: 0)
-                        .onChanged { value in
-                            isDragging = true
-                            updateVolume(at: value.location.x, width: width)
-                        }
-                        .onEnded { value in
-                            updateVolume(at: value.location.x, width: width)
-                            isDragging = false
-                        }
-                )
-                .animation(.spring(response: 0.24, dampingFraction: 0.82), value: isDragging)
+                .buttonStyle(.pressable)
             }
-            .frame(height: 24)
-            .accessibilityElement()
-            .accessibilityLabel("音量")
-            .accessibilityValue("\(Int((player.volume * 100).rounded()))%")
-            .accessibilityAdjustableAction(adjustVolume)
-            Image(systemName: "speaker.wave.3.fill")
-                .font(.caption)
         }
-        .foregroundStyle(.white.opacity(0.7))
-    }
-
-    private func updateVolume(at location: CGFloat, width: CGFloat) {
-        guard width > 0 else { return }
-        player.volume = Float(min(max(location / width, 0), 1))
-    }
-
-    private func adjustVolume(_ direction: AccessibilityAdjustmentDirection) {
-        let step: Float = 0.05
-        switch direction {
-        case .increment:
-            player.volume = min(player.volume + step, 1)
-        case .decrement:
-            player.volume = max(player.volume - step, 0)
-        @unknown default:
-            break
-        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 3)
+        .accessibilityLabel("音质")
     }
 }
 
@@ -1368,9 +1337,6 @@ private struct CompactSecondaryControls: View {
                 label: showsLyrics ? "显示封面" : "显示歌词",
                 isActive: showsLyrics && !showsQueue
             ) { onToggleLyrics() }
-
-            RoutePickerButton(diameter: 44, glyphSize: 17)
-                .frame(maxWidth: .infinity)
 
             secondaryButton(
                 icon: "list.bullet",
@@ -1879,7 +1845,6 @@ private struct MinimalTrackInfoRow: View {
     @EnvironmentObject private var player: PlayerService
     @EnvironmentObject private var account: AccountStore
     @State private var showAddToPlaylist = false
-    @State private var airPlayRequest = 0
     var metadataOnly = false
     var actionsOnly = false
 
@@ -1957,12 +1922,6 @@ private struct MinimalTrackInfoRow: View {
     private func moreMenu(for track: Track) -> some View {
         Menu {
             Button {
-                airPlayRequest += 1
-            } label: {
-                Label("AirPlay", systemImage: "airplayaudio")
-            }
-
-            Button {
                 player.addToPlayNext(track)
             } label: {
                 Label("下一首播放", systemImage: "text.line.first.and.arrowtriangle.forward")
@@ -1994,13 +1953,6 @@ private struct MinimalTrackInfoRow: View {
         .buttonStyle(.pressable)
         .accessibilityLabel("更多操作")
         .accessibilityIdentifier("immersiveMoreMenu")
-        .background {
-            RoutePickerButton(
-                diameter: 1, glyphSize: 1, request: airPlayRequest,
-                tint: .clear, background: .clear
-            )
-            .opacity(0.01)
-        }
     }
 }
 
