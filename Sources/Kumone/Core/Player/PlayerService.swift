@@ -418,6 +418,12 @@ final class PlayerService: ObservableObject {
         // Update UI immediately for immediate feedback.
         progress = seconds
         updateLyricsCursor(at: seconds)
+
+        print("[SEEK] Target: \(seconds)s | Was playing: \(wasPlaying)")
+        print("[SEEK] Engine currentTime before seek: \(engine.currentTime().seconds)")
+        print("[SEEK] Clock progress before seek: \(clock.progress)")
+        print("[SEEK] Duration: \(engine.currentItem?.duration.seconds ?? 0)")
+
         // Precise seek with zero tolerance; only update elapsed time after completion.
         engine.seek(
             to: CMTime(seconds: seconds, preferredTimescale: 600),
@@ -426,16 +432,49 @@ final class PlayerService: ObservableObject {
         ) { [weak self] _ in
             Task { @MainActor [weak self] in
                 guard let self else { return }
-                // Now that seek has finished and audio is at the target position,
-                // update the timeline and resume playback if it was playing.
-                NowPlayingManager.shared.updateElapsed(seconds, rate: wasPlaying ? 1 : 0)
+                
+                print("[SEEK] Seek completed. Engine currentTime: \(self.engine.currentTime().seconds)")
+                
+                // Wait for the audio buffer to be ready before resuming playback.
                 if wasPlaying {
+                    let buffered = await self.waitForBuffer(at: seconds)
+                    print("[SEEK] Buffer ready after \(buffered)ms. Loaded: \(self.loadedBufferTime())")
+                    
                     self.engine.play()
                     self.isPlaying = true
+                    print("[SEEK] Resumed playback. Engine currentTime: \(self.engine.currentTime().seconds)")
                 }
+                
+                // Now update the UI timeline.
+                NowPlayingManager.shared.updateElapsed(seconds, rate: wasPlaying ? 1 : 0)
+                self.clock.progress = seconds
+                print("[SEEK] UI timeline set to \(self.clock.progress)s")
+                
                 completion?()
             }
         }
+    }
+
+    /// Wait until the loaded buffer covers the target time.
+    private func waitForBuffer(at seconds: TimeInterval) async -> Int {
+        var elapsed = 0
+        let step = 50 // ms
+        for _ in 0..<60 { // max 3 seconds
+            if let duration = engine.currentItem?.duration.seconds,
+               let loaded = engine.currentItem?.loadedTimeRanges.last?.timeRange.end.seconds {
+                if loaded >= seconds || loaded >= duration - 0.5 {
+                    return elapsed
+                }
+            }
+            try? await Task.sleep(for: .milliseconds(step))
+            elapsed += step
+        }
+        return elapsed
+    }
+
+    /// Returns the currently loaded buffer end time in seconds.
+    private func loadedBufferTime() -> Double {
+        engine.currentItem?.loadedTimeRanges.last?.timeRange.end.seconds ?? 0
     }
 
     func toggleShuffle() {
