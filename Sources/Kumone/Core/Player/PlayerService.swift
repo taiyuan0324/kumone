@@ -460,8 +460,8 @@ final class PlayerService: ObservableObject {
         var elapsed = 0
         let step = 50 // ms
         for _ in 0..<60 { // max 3 seconds
-            if let duration = engine.currentItem?.duration.seconds,
-               let loaded = engine.currentItem?.loadedTimeRanges.last?.timeRange.end.seconds {
+            if let duration = engine.currentItem?.duration.seconds {
+                let loaded = loadedBufferTime()
                 if loaded >= seconds || loaded >= duration - 0.5 {
                     return elapsed
                 }
@@ -474,7 +474,10 @@ final class PlayerService: ObservableObject {
 
     /// Returns the currently loaded buffer end time in seconds.
     private func loadedBufferTime() -> Double {
-        engine.currentItem?.loadedTimeRanges.last?.timeRange.end.seconds ?? 0
+        guard let ranges = engine.currentItem?.loadedTimeRanges,
+              let last = ranges.last else { return 0 }
+        let timeRange = last.timeRangeValue
+        return timeRange.end.seconds
     }
 
     func toggleShuffle() {
