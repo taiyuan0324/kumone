@@ -454,17 +454,29 @@ final class PlayerService: ObservableObject {
                 AppLogStore.append("[PLAYBACK] status=\(self.engine.timeControlStatus.rawValue) reason=\(String(describing: self.engine.reasonForWaitingToPlay)) likelyKeepUp=\(self.engine.currentItem?.isPlaybackLikelyToKeepUp ?? false) bufferEmpty=\(self.engine.currentItem?.isPlaybackBufferEmpty ?? false) bufferFull=\(self.engine.currentItem?.isPlaybackBufferFull ?? false)")
                 
                 if wasPlaying {
-                    // Resume playback first; the timeObserver will take over
-                    // and drive playbackTime/lyrics from the actual audio position.
-                    self.engine.play()
-                    self.isPlaying = true
-                    AppLogStore.append("[SEEK] Resumed playback. Engine currentTime: \(self.engine.currentTime().seconds)")
+                    // Preroll the playback pipeline before resuming.
+                    // This lets AVPlayer prepare its audio output path before
+                    // play() is called, reducing the gap between seek target
+                    // and actual audio output on high-bitrate sources.
+                    self.engine.preroll(atRate: 1.0) { [weak self] _ in
+                        Task { @MainActor [weak self] in
+                            guard let self else { return }
+                            
+                            self.engine.play()
+                            self.isPlaying = true
+                            AppLogStore.append("[SEEK] Prerolled and resumed. Engine currentTime: \(self.engine.currentTime().seconds)")
+                            
+                            // Clear the preview; UI will follow playbackTime from the observer.
+                            self.seekPreviewTime = nil
+                            
+                            completion?()
+                        }
+                    }
+                } else {
+                    // Wasn't playing before - just clear the preview.
+                    self.seekPreviewTime = nil
+                    completion?()
                 }
-                
-                // Clear the preview; UI will follow playbackTime from the observer.
-                self.seekPreviewTime = nil
-                
-                completion?()
             }
         }
     }
