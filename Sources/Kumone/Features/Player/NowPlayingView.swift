@@ -20,6 +20,7 @@ struct NowPlayingView: View {
     @State private var showLyricsOnMobile = false
     @State private var showQueueOnMobile = false
     @State private var showCommentsOnMobile = false
+    @State private var showSleepTimerOnMobile = false
 
     var body: some View {
         GeometryReader { geo in
@@ -94,6 +95,9 @@ struct NowPlayingView: View {
             if let track = player.currentTrack {
                 SongCommentsSheet(track: track)
             }
+        }
+        .sheet(isPresented: $showSleepTimerOnMobile) {
+            SleepTimerSheet()
         }
         .task(id: player.currentTrack?.id) {
             await loadArtwork()
@@ -433,19 +437,27 @@ struct NowPlayingView: View {
     }
 
     private var immersiveControls: some View {
-        VStack(spacing: 17) {
-            NowPlayingScrubber()
-            CompactTransportControls()
+        VStack(spacing: 16) {
+            // Quality selector + bitrate display on top
             CompactQualitySelector()
+            
+            // Scrubber below
+            NowPlayingScrubber()
+            
+            // Transport controls
+            CompactTransportControls()
+            
+            // Secondary controls (lyrics, comments, sleep timer, queue)
             CompactSecondaryControls(
                 showsLyrics: showLyricsOnMobile,
                 showsQueue: showQueueOnMobile,
                 onToggleLyrics: toggleImmersiveLyrics,
                 onToggleQueue: toggleImmersiveQueue,
-                onShowComments: { showCommentsOnMobile = true }
+                onShowComments: { showCommentsOnMobile = true },
+                onShowSleepTimer: { showSleepTimerOnMobile = true }
             )
         }
-        .padding(.top, 14)
+        .padding(.top, 10)
         .padding(.bottom, 10)
         .accessibilityIdentifier("immersiveControls")
     }
@@ -1354,6 +1366,7 @@ private struct CompactSecondaryControls: View {
     let onToggleLyrics: () -> Void
     let onToggleQueue: () -> Void
     let onShowComments: () -> Void
+    let onShowSleepTimer: () -> Void
 
     var body: some View {
         HStack(spacing: 0) {
@@ -1368,6 +1381,13 @@ private struct CompactSecondaryControls: View {
                 label: "评论",
                 isActive: false
             ) { onShowComments() }
+
+            // Sleep timer button
+            secondaryButton(
+                icon: player.hasSleepTimerActive ? "moon.fill" : "moon",
+                label: "定时关闭",
+                isActive: player.hasSleepTimerActive
+            ) { onShowSleepTimer() }
 
             secondaryButton(
                 icon: "list.bullet",

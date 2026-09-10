@@ -551,7 +551,7 @@ enum NeteaseAPI {
     ) async throws -> SongCommentsResponse {
         try await weapi(
             SongCommentsResponse.self,
-            "/api/v1/resource/comments/R_SO_4_\(id)",
+            "/v1/resource/comments/R_SO_4_\(id)",
             [
                 "rid": id,
                 "limit": limit,

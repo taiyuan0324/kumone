@@ -151,6 +151,32 @@ final class PlayerService: ObservableObject {
     @Published private(set) var lyrics: ParsedLyrics?
     @Published var activePanel: RightPanel?
     @Published var showNowPlaying = false
+    @Published private(set) var sleepTimerEndDate: Date?
+    private var sleepTimerTask: Task<Void, Never>?
+
+    var hasSleepTimerActive: Bool {
+        sleepTimerEndDate != nil
+    }
+
+    func startSleepTimer(minutes: Int) {
+        guard minutes > 0 else { return }
+        sleepTimerTask?.cancel()
+        let deadline = Date().addingTimeInterval(TimeInterval(minutes * 60))
+        sleepTimerEndDate = deadline
+        sleepTimerTask = Task { @MainActor [weak self] in
+            try? await Task.sleep(for: .seconds(minutes * 60))
+            guard !Task.isCancelled else { return }
+            self?.sleepTimerEndDate = nil
+            self?.sleepTimerTask = nil
+            self?.togglePlayPause()
+        }
+    }
+
+    func cancelSleepTimer() {
+        sleepTimerTask?.cancel()
+        sleepTimerTask = nil
+        sleepTimerEndDate = nil
+    }
 
     /// The list the player is walking through (shuffled or ordered).
     var activeQueue: [Track] { shuffleEnabled ? shuffledQueue : queue }
