@@ -410,6 +410,8 @@ final class PlayerService: ObservableObject {
 
     func seek(to seconds: TimeInterval, completion: (@MainActor () -> Void)? = nil) {
         let wasPlaying = isPlaying
+        // Cancel any pending seeks to avoid race conditions on rapid dragging.
+        engine.cancelPendingSeeks()
         // Pause before seeking to prevent timeline from advancing while audio decodes.
         if wasPlaying {
             engine.pause()
@@ -417,7 +419,9 @@ final class PlayerService: ObservableObject {
         }
         // Update UI immediately for immediate feedback.
         progress = seconds
-        updateLyricsCursor(at: seconds)
+        // Do NOT update lyrics cursor here - let the timeObserver drive lyrics
+        // after playback actually resumes, so UI stays in sync with audio output.
+        // updateLyricsCursor(at: seconds)
 
         AppLogStore.append("[SEEK] Target: \(seconds)s | Was playing: \(wasPlaying)")
         AppLogStore.append("[SEEK] Engine currentTime before seek: \(engine.currentTime().seconds)")
@@ -425,15 +429,19 @@ final class PlayerService: ObservableObject {
         AppLogStore.append("[SEEK] Duration: \(engine.currentItem?.duration.seconds ?? 0)")
 
         // Precise seek with zero tolerance; only update elapsed time after completion.
+        // Use 0.1s tolerance for faster seek on high-bitrate sources.
+        // Zero tolerance requires sample-accurate seeking which adds decode
+        // latency on lossless/hi-res streams.
         engine.seek(
             to: CMTime(seconds: seconds, preferredTimescale: 600),
-            toleranceBefore: .zero,
-            toleranceAfter: .zero
+            toleranceBefore: CMTime(seconds: 0.1, preferredTimescale: 600),
+            toleranceAfter: CMTime(seconds: 0.1, preferredTimescale: 600)
         ) { [weak self] _ in
             Task { @MainActor [weak self] in
                 guard let self else { return }
                 
                 AppLogStore.append("[SEEK] Seek completed. Engine currentTime: \(self.engine.currentTime().seconds)")
+                AppLogStore.append("[PLAYBACK] status=\(self.engine.timeControlStatus.rawValue) reason=\(String(describing: self.engine.reasonForWaitingToPlay)) likelyKeepUp=\(self.engine.currentItem?.isPlaybackLikelyToKeepUp ?? false) bufferEmpty=\(self.engine.currentItem?.isPlaybackBufferEmpty ?? false) bufferFull=\(self.engine.currentItem?.isPlaybackBufferFull ?? false)")
                 
                 // Wait for the audio buffer to be ready before resuming playback.
                 if wasPlaying {
@@ -729,11 +737,14 @@ final class PlayerService: ObservableObject {
         guard generation == resolveGeneration else { return }
 
         let item = AVPlayerItem(asset: asset)
-        if let assetTrack, let mix = AudioSpectrum.shared.makeAudioMix(for: assetTrack) {
-            item.audioMix = mix
-        } else {
-            AudioSpectrum.shared.markUntappable()
-        }
+        // NOTE: AudioMix/spectrum processing disabled to reduce decode latency
+        // for high-bitrate lossless sources. Re-enable only if spectrum visualizer
+        // is required.
+        // if let assetTrack, let mix = AudioSpectrum.shared.makeAudioMix(for: assetTrack) {
+        //     item.audioMix = mix
+        // } else {
+        //     AudioSpectrum.shared.markUntappable()
+        // }
 
         if let old = endObserver {
             NotificationCenter.default.removeObserver(old)
