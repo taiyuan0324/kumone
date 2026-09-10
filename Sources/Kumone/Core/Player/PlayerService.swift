@@ -108,6 +108,12 @@ final class LyricsCursor: ObservableObject {
 @MainActor
 final class PlayerService: ObservableObject {
     static let shared = PlayerService()
+    
+    /// Maximum allowed lead time for UI timeline vs actual audio output
+    /// before we clamp the preview. On high-bitrate sources, the AVPlayer
+    /// timeline can run ahead of the decoded audio; keeping this small
+    /// prevents the scrubber/lyrics from getting ahead of the sound.
+    private static let maxTimelineLead = 0.5
 
     // MARK: - Observable state
 
@@ -248,10 +254,13 @@ final class PlayerService: ObservableObject {
 
         timeObserver = engine.addPeriodicTimeObserver(
             forInterval: CMTime(seconds: 0.2, preferredTimescale: 600), queue: .main
-        ) { [weak self] time in
+        ) { [weak self] _ in
             MainActor.assumeIsolated {
                 guard let self, !self.isScrubbing else { return }
-                let seconds = time.seconds
+                // Use engine.currentTime() which reflects the actual audio
+                // output position, not the AVPlayer timeline which can run
+                // ahead of the decoded audio on high-bitrate sources.
+                let seconds = self.engine.currentTime().seconds
                 guard seconds.isFinite else { return }
 
                 // Lyrics need this cadence to stay in sync; the cursor itself
@@ -418,7 +427,8 @@ final class PlayerService: ObservableObject {
             isPlaying = false
         }
         // Update UI immediately for immediate feedback.
-        progress = seconds
+        // Use actual engine position so preview doesn't jump ahead of audio.
+        progress = min(seconds, engine.currentTime().seconds + Self.maxTimelineLead)
         // Do NOT update lyrics cursor here - let the timeObserver drive lyrics
         // after playback actually resumes, so UI stays in sync with audio output.
         // updateLyricsCursor(at: seconds)
@@ -453,10 +463,11 @@ final class PlayerService: ObservableObject {
                     AppLogStore.append("[SEEK] Resumed playback. Engine currentTime: \(self.engine.currentTime().seconds)")
                 }
                 
-                // Now update the UI timeline.
-                NowPlayingManager.shared.updateElapsed(seconds, rate: wasPlaying ? 1 : 0)
-                self.clock.progress = seconds
-                AppLogStore.append("[SEEK] UI timeline set to \(self.clock.progress)s")
+                // Now update the UI timeline to the actual engine position.
+                let actualTime = self.engine.currentTime().seconds
+                NowPlayingManager.shared.updateElapsed(actualTime, rate: wasPlaying ? 1 : 0)
+                self.clock.progress = actualTime
+                AppLogStore.append("[SEEK] UI timeline set to \(actualTime)s (engine time)")
                 
                 completion?()
             }
