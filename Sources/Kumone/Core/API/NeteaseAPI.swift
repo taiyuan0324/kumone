@@ -520,7 +520,14 @@ enum NeteaseAPI {
             isLiked = try c.decodeIfPresent(Bool.self, forKey: .isLiked) ?? false
             replyCount = try c.decodeIfPresent(Int.self, forKey: .replyCount) ?? 0
             replies = try c.decodeIfPresent([CommentReply].self, forKey: .replies) ?? []
-            ipLocation = try c.decodeIfPresent(String.self, forKey: .ipLocation)
+            // ipLocation can be a String or an object { "location": "北京" }
+            if let locStr = try? c.decode(String.self, forKey: .ipLocation) {
+                ipLocation = locStr
+            } else if let locObj = try? c.decodeIfPresent([String: String].self, forKey: .ipLocation) {
+                ipLocation = locObj["location"] ?? locObj["ip"]
+            } else {
+                ipLocation = nil
+            }
             isOwner = try c.decodeIfPresent(Bool.self, forKey: .isOwner) ?? false
         }
     }
@@ -549,15 +556,25 @@ enum NeteaseAPI {
         offset: Int = 0,
         limit: Int = 20
     ) async throws -> SongCommentsResponse {
-        try await weapi(
+        let payload: [String: Any] = [
+            "rid": id,
+            "limit": limit,
+            "offset": offset,
+            "beforeTime": 0,
+        ]
+        // Try weapi first.
+        if let response = try? await weapi(
             SongCommentsResponse.self,
             "/v1/resource/comments/R_SO_4_\(id)",
-            [
-                "rid": id,
-                "limit": limit,
-                "offset": offset,
-                "beforeTime": 0,
-            ]
+            payload
+        ) {
+            return response
+        }
+        // Fallback: try eapi.
+        return try await eapi(
+            SongCommentsResponse.self,
+            "/v1/resource/comments/R_SO_4_\(id)",
+            payload
         )
     }
 
