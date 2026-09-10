@@ -69,8 +69,20 @@ struct AppLogView: View {
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
-                Button(action: { AppLogStore.clear() }) {
-                    Text("清除")
+                Menu {
+                    Button {
+                        UIPasteboard.general.string = logs.map { "\($0.time)  \($0.message)" }.joined(separator: "\n")
+                    } label: {
+                        Label("复制全部日志", systemImage: "doc.on.doc")
+                    }
+                    Button(role: .destructive) {
+                        AppLogStore.clear()
+                    } label: {
+                        Label("清除日志", systemImage: "trash")
+                    }
+                } label: {
+                    Image(systemName: "square.and.arrow.up")
+                        .font(.body)
                 }
             }
         }
