@@ -381,10 +381,48 @@ enum NeteaseAPI {
     }
 
     static func songURL(ids: [Int], level: String) async throws -> [SongURLData] {
-        let idString = "[" + ids.map(String.init).joined(separator: ",") + "]"
-        var payload: [String: Any] = ["ids": idString, "level": level, "encodeType": "flac"]
-        if level == "sky" { payload["immerseType"] = "c51" }
-        return try await eapi(SongURLResponse.self, "/song/enhance/player/url/v1", payload).data
+        // Try GD Studio API first for each requested track.
+        var results: [SongURLData] = []
+        for id in ids {
+            // Map Kumone AudioQuality levels to gdstudio br values.
+            let br: Int = {
+                switch level {
+                case AudioQuality.standard.rawValue: 128
+                case AudioQuality.higher.rawValue: 192
+                case AudioQuality.exhigh.rawValue: 320
+                case AudioQuality.lossless.rawValue: 740
+                case AudioQuality.hires.rawValue: 999
+                default: 320
+                }
+            }()
+            
+            // Try GD Studio first.
+            if let urlString = try? await GdstudioMusicAPI.songURL(id: id, br: br, source: "netease"),
+               let url = urlString, !url.isEmpty {
+                results.append(SongURLData(
+                    id: id,
+                    url: url,
+                    br: br,
+                    size: 0,
+                    type: nil,
+                    level: level,
+                    fee: 0,
+                    freeTrialInfo: nil,
+                    time: 0
+                ))
+                continue
+            }
+
+            // Fallback: use the original NetEase API.
+            let idString = "[" + String(id) + "]"
+            var payload: [String: Any] = ["ids": idString, "level": level, "encodeType": "flac"]
+            if level == "sky" { payload["immerseType"] = "c51" }
+            if let data = try? await eapi(SongURLResponse.self, "/song/enhance/player/url/v1", payload).data,
+               let first = data.first {
+                results.append(first)
+            }
+        }
+        return results
     }
 
     // MARK: - Comments

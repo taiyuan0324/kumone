@@ -309,6 +309,28 @@ struct SongURLData: Decodable, Hashable {
         case id, url, br, size, type, level, fee, freeTrialInfo, time
     }
 
+    init(
+        id: Int,
+        url: String?,
+        br: Int,
+        size: Int,
+        type: String?,
+        level: String?,
+        fee: Int,
+        freeTrialInfo: FreeTrialInfo?,
+        time: Int
+    ) {
+        self.id = id
+        self.url = url
+        self.br = br
+        self.size = size
+        self.type = type
+        self.level = level
+        self.fee = fee
+        self.freeTrialInfo = freeTrialInfo
+        self.time = time
+    }
+
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         id = try c.decode(Int.self, forKey: .id)
