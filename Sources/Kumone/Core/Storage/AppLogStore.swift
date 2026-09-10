@@ -89,9 +89,9 @@ struct AppLogView: View {
             }
         }
         .onAppear {
-            logs = AppLogStore.shared.logs
-            AppLogStore.shared.addObserver {
-                logs = AppLogStore.shared.logs
+            logs = AppLogStore.logs
+            AppLogStore.addObserver {
+                logs = AppLogStore.logs
             }
         }
     }
